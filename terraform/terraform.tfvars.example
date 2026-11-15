@@ -1,0 +1,19 @@
+proxmox_endpoint   = "https://192.168.1.5:8006/"
+proxmox_insecure   = true # self-signed certificate
+template_vm_id     = 9000
+template_node_name = "pve"
+datastore_id       = "local-lvm"
+network_bridge     = "vmbr0"
+network_prefix     = 24
+network_gateway    = "192.168.1.1"
+ssh_public_key     = "ssh-ed25519 REPLACE_WITH_YOUR_PUBLIC_KEY"
+
+# Replace node names, VM IDs (must be unused) and IPs (must be free).
+nodes = {
+  master-1 = { proxmox_node = "pve", vm_id = 200, ip_address = "192.168.1.10", memory = 3072 }
+  master-2 = { proxmox_node = "pve", vm_id = 201, ip_address = "192.168.1.11", memory = 3072 }
+  master-3 = { proxmox_node = "pve", vm_id = 202, ip_address = "192.168.1.12", memory = 3072 }
+  worker-1 = { proxmox_node = "pve", vm_id = 300, ip_address = "192.168.1.20", memory = 4096 }
+  worker-2 = { proxmox_node = "pve", vm_id = 301, ip_address = "192.168.1.21", memory = 4096 }
+  worker-3 = { proxmox_node = "pve", vm_id = 302, ip_address = "192.168.1.22", memory = 4096 }
+}

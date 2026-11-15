@@ -1,0 +1,28 @@
+---
+# Replace these values with unused addresses in the Proxmox node VLAN.
+control_plane_vip: 192.168.1.9
+control_plane_vip_prefix: 24
+keepalived_router_id: 51
+
+# Keep the Kubernetes minor and patch pinned for repeatable cluster creation.
+kubernetes_minor_version: v1.37
+kubernetes_package_version: 1.37.2-1.1
+pod_network_cidr: 10.244.0.0/16
+flannel_version: v0.28.10
+local_path_version: v0.0.32
+
+helm_version: v3.17.3
+metallb_chart_version: 0.14.9
+cert_manager_chart_version: v1.17.2
+kube_prometheus_stack_version: 69.8.2
+argocd_chart_version: 7.8.26
+
+# MetalLB addresses must be reserved, unused, and in the same Layer-2 network.
+metallb_addresses:
+  - 192.168.1.100-192.168.1.150
+
+# Use the URL of the GitHub manifests repository. For private repositories,
+# configure Argo CD's read-only deploy key separately on the cluster.
+manifests_repo_url: https://github.com/Harrys-Kouam/manifests-liora.git
+manifests_repo_revision: main
+manifests_chart_path: helm/task-manager-api
