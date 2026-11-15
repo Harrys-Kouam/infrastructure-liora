@@ -1,9 +1,14 @@
 terraform {
   required_version = ">= 1.6.0"
 
-  # State lives in HCP Terraform; organization and workspace come from the
-  # TF_CLOUD_ORGANIZATION and TF_WORKSPACE environment variables.
-  cloud {}
+  # State lives in HCP Terraform (workspace in Local execution mode).
+  cloud {
+    organization = "Harrys-liora"
+
+    workspaces {
+      name = "proxmox-kubernetes"
+    }
+  }
 
   required_providers {
     proxmox = {

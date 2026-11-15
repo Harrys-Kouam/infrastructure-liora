@@ -24,12 +24,11 @@ or `apply` (creates the VMs). State is stored in HCP Terraform.
 
 One-time setup:
 
-1. In HCP Terraform (app.terraform.io), create an organization and a workspace
+1. In HCP Terraform (app.terraform.io), use the organization `Harrys-liora` (set in `main.tf`) and create a workspace
    named `proxmox-kubernetes` with **Execution Mode: Local**.
 2. Create an HCP user or team API token.
 3. Add these GitHub repository secrets:
    - `TF_API_TOKEN`: the HCP API token.
-   - `TF_CLOUD_ORGANIZATION`: the HCP organization name.
    - `PROXMOX_VE_API_TOKEN`: `user@realm!tokenname=secret`.
    - `TFVARS`: the full content of your `terraform.tfvars` (see
      `terraform.tfvars.example`).

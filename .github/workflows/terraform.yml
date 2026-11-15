@@ -55,8 +55,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      TF_CLOUD_ORGANIZATION: ${{ secrets.TF_CLOUD_ORGANIZATION }}
-      TF_WORKSPACE: proxmox-kubernetes
       PROXMOX_VE_API_TOKEN: ${{ secrets.PROXMOX_VE_API_TOKEN }}
     defaults:
       run:
