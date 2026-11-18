@@ -17,11 +17,11 @@ Terraform files.
 ## Run it from GitHub
 
 The `Terraform` workflow validates on every push and pull request. To create the
-VMs, open Actions → Terraform → Run workflow. The `plan` job shows the changes;
+VMs, open Actions → Apply Terraform → Run workflow. The `plan` job shows the changes;
 the `apply` job then waits for your approval (Review deployments → Approve) and
 creates the VMs. State is stored in HCP Terraform.
 
-To delete the five VMs: Actions → **Terraform destroy** → Run workflow, type
+To delete the five VMs: Actions → **Destroy Terraform** → Run workflow, type
 `destroy`, read the `plan` job, then approve the `destroy` job. Only resources in
 the Terraform state are removed (never the other VMs on the server).
 

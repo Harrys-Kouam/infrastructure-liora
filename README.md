@@ -20,7 +20,7 @@ The application source and Helm chart live in their own repositories:
 
 ## How it runs
 
-1. Actions → **Terraform** → Run workflow: `plan` runs, then `apply` waits for your
+1. Actions → **Apply Terraform** → Run workflow: `plan` runs, then `apply` waits for your
    approval (environment `apply`) (GitHub-hosted
    runner, state in HCP Terraform). See [terraform/README.md](terraform/README.md).
 2. Register `runner-1` once, by hand (see [ansible/README.md](ansible/README.md)).
