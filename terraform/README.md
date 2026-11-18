@@ -21,6 +21,10 @@ VMs, open Actions → Terraform → Run workflow. The `plan` job shows the chang
 the `apply` job then waits for your approval (Review deployments → Approve) and
 creates the VMs. State is stored in HCP Terraform.
 
+To delete the five VMs: Actions → **Terraform destroy** → Run workflow, type
+`destroy`, read the `plan` job, then approve the `destroy` job. Only resources in
+the Terraform state are removed (never the other VMs on the server).
+
 Create the approval gate once: Settings → Environments → New environment `apply`
 → tick **Required reviewers** and add yourself. Without it, `apply` would run
 automatically.
