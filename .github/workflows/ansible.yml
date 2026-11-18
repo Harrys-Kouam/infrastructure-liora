@@ -36,7 +36,7 @@ jobs:
           ansible-galaxy collection install -r ansible/requirements.yml
 
       - name: Check playbook syntax
-        run: ansible-playbook -i ansible/inventory.ini.example ansible/site.yml --syntax-check
+        run: ansible-playbook -i ansible/inventory.ini ansible/site.yml --syntax-check
 
       - name: Lint playbook
         run: ansible-lint ansible/site.yml
@@ -56,15 +56,13 @@ jobs:
           "$RUNNER_TEMP/venv/bin/pip" install ansible-core
           "$RUNNER_TEMP/venv/bin/ansible-galaxy" collection install -r ansible/requirements.yml
 
-      - name: Write the SSH key and inventory
+      - name: Write the SSH key
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          ANSIBLE_INVENTORY: ${{ secrets.ANSIBLE_INVENTORY }}
         run: |
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          printf '%s\n' "$ANSIBLE_INVENTORY" > ansible/inventory.ini
 
       - name: Install Kubernetes and the platform services
         env:
@@ -79,4 +77,4 @@ jobs:
 
       - name: Remove the SSH key
         if: always()
-        run: rm -f ~/.ssh/deploy_key ansible/inventory.ini
+        run: rm -f ~/.ssh/deploy_key

@@ -9,7 +9,6 @@ terraform/crash.log
 terraform/crash.*.log
 
 # Ansible local inventory, vault files, and generated artifacts
-ansible/inventory.ini
 ansible/*.retry
 ansible/**/vault.yml
 ansible/**/vault.yaml

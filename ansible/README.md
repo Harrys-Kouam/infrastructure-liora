@@ -15,8 +15,9 @@ are not scraped.
 ## One-time setup
 
 1. Provision the VMs with Terraform.
-2. Copy `inventory.ini.example` to `inventory.ini` and adjust the IPs. In
-   `group_vars/all.yml` set `metallb_addresses` to unused private IPs.
+2. `inventory.ini` lists the VMs with the same IPs as `terraform/variables.tf`
+   (keep both in sync). In `group_vars/all.yml`, `metallb_addresses` must be
+   unused private IPs.
 3. Register the runner on `runner-1`. From a machine that can reach the
    Proxmox host:
 
@@ -33,7 +34,6 @@ are not scraped.
    | Secret | Value |
    |---|---|
    | `SSH_PRIVATE_KEY` | private key matching the public key given to Terraform |
-   | `ANSIBLE_INVENTORY` | full content of `inventory.ini` |
    | `GRAFANA_ADMIN_PASSWORD` | 24+ characters, from `openssl rand -base64 24` |
    | `TASK_MANAGER_JWT_SECRET` | 32+ characters, from `openssl rand -hex 32` |
    | `MINIO_ROOT_PASSWORD` | 24+ characters, from `openssl rand -base64 24` |
