@@ -1,38 +1,41 @@
 variable "proxmox_endpoint" {
-  description = "Proxmox API URL, e.g. https://IP:8006/"
+  description = "Proxmox API URL"
   type        = string
+  default     = "https://151.115.97.89:8006/"
 }
 
 variable "proxmox_insecure" {
   description = "Accept a self-signed Proxmox certificate"
   type        = bool
-  default     = false
+  default     = true
+}
+
+variable "proxmox_node" {
+  description = "Proxmox node that holds the template and runs every VM"
+  type        = string
+  default     = "sep25-continu-devops-fastapi"
 }
 
 variable "template_vm_id" {
   description = "VM ID of the Ubuntu cloud-init template to clone"
   type        = number
-}
-
-variable "template_node_name" {
-  description = "Proxmox node that holds the template"
-  type        = string
+  default     = 9000
 }
 
 variable "datastore_id" {
   description = "Proxmox storage for VM disks and cloud-init"
   type        = string
-  default     = "local-lvm"
+  default     = "local"
 }
 
 variable "network_bridge" {
   description = "Proxmox bridge used by the VMs"
   type        = string
-  default     = "vmbr0"
+  default     = "vmbr1"
 }
 
 variable "network_prefix" {
-  description = "Subnet prefix length, e.g. 24"
+  description = "Subnet prefix length"
   type        = number
   default     = 24
 }
@@ -40,6 +43,7 @@ variable "network_prefix" {
 variable "network_gateway" {
   description = "Default gateway of the VMs"
   type        = string
+  default     = "192.168.100.1"
 }
 
 variable "vm_username" {
@@ -49,8 +53,9 @@ variable "vm_username" {
 }
 
 variable "ssh_public_key" {
-  description = "SSH public key injected by cloud-init"
+  description = "SSH public key injected by cloud-init (the private key is the SSH_PRIVATE_KEY secret)"
   type        = string
+  default     = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOnxfDHaZBQ75AyjtCxJA29JOGMMjYeInXCk1syJGbCH task-manager-ansible"
 }
 
 variable "cpu_cores" {
@@ -66,20 +71,28 @@ variable "disk_size_gb" {
 }
 
 variable "nodes" {
-  description = "The VMs to create, keyed by VM name: 3 'master' and 3 'worker'"
+  description = "The VMs to create, keyed by VM name: 1 master, 2 workers, 1 runner, 1 monitoring"
   type = map(object({
-    proxmox_node = string
-    vm_id        = number
-    ip_address   = string
-    memory       = number
+    vm_id      = number
+    ip_address = string
+    memory     = number
   }))
+  default = {
+    master-1     = { vm_id = 200, ip_address = "192.168.100.10", memory = 3072 }
+    worker-1     = { vm_id = 300, ip_address = "192.168.100.20", memory = 4096 }
+    worker-2     = { vm_id = 301, ip_address = "192.168.100.21", memory = 4096 }
+    runner-1     = { vm_id = 400, ip_address = "192.168.100.30", memory = 2048 }
+    monitoring-1 = { vm_id = 401, ip_address = "192.168.100.40", memory = 4096 }
+  }
 
   validation {
     condition = (
-      length([for name in keys(var.nodes) : name if startswith(name, "master")]) == 3 &&
-      length([for name in keys(var.nodes) : name if startswith(name, "worker")]) == 3 &&
-      length(var.nodes) == 6
+      length([for name in keys(var.nodes) : name if startswith(name, "master")]) == 1 &&
+      length([for name in keys(var.nodes) : name if startswith(name, "worker")]) == 2 &&
+      length([for name in keys(var.nodes) : name if startswith(name, "runner")]) == 1 &&
+      length([for name in keys(var.nodes) : name if startswith(name, "monitoring")]) == 1 &&
+      length(var.nodes) == 5
     )
-    error_message = "Define exactly 3 nodes named master* and 3 named worker*."
+    error_message = "Define exactly 5 nodes: 1 master*, 2 worker*, 1 runner* and 1 monitoring*."
   }
 }

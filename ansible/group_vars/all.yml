@@ -1,9 +1,4 @@
 ---
-# Replace these values with unused addresses in the Proxmox node VLAN.
-control_plane_vip: 192.168.1.9
-control_plane_vip_prefix: 24
-keepalived_router_id: 51
-
 # Keep the Kubernetes minor and patch pinned for repeatable cluster creation.
 kubernetes_minor_version: v1.37
 kubernetes_package_version: 1.37.2-1.1
@@ -14,12 +9,25 @@ local_path_version: v0.0.32
 helm_version: v3.17.3
 metallb_chart_version: 0.14.9
 cert_manager_chart_version: v1.17.2
-kube_prometheus_stack_version: 69.8.2
 argocd_chart_version: 7.8.26
+velero_chart_version: 12.2.5
+velero_version: v1.18.2
+velero_aws_plugin_version: v1.14.4
 
-# MetalLB addresses must be reserved, unused, and in the same Layer-2 network.
+# MinIO is archived and has no binaries or images, so it is built from source.
+go_version: 1.24.8
+minio_version: RELEASE.2025-10-15T17-29-55Z
+minio_root_user: minio-admin
+minio_bucket: velero
+
+# Secrets come from the environment (GitHub Actions secrets), never from files.
+grafana_admin_password: "{{ lookup('ansible.builtin.env', 'GRAFANA_ADMIN_PASSWORD') }}"
+minio_root_password: "{{ lookup('ansible.builtin.env', 'MINIO_ROOT_PASSWORD') }}"
+task_manager_jwt_secret: "{{ lookup('ansible.builtin.env', 'TASK_MANAGER_JWT_SECRET') }}"
+
+# MetalLB addresses must be unused and on the VMs' private network (vmbr1).
 metallb_addresses:
-  - 192.168.1.100-192.168.1.150
+  - 192.168.100.100-192.168.100.150
 
 # Use the URL of the GitHub manifests repository. For private repositories,
 # configure Argo CD's read-only deploy key separately on the cluster.

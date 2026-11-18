@@ -1,0 +1,190 @@
+---
+- name: Install Kubernetes and containerd on every node
+  hosts: kubernetes
+  become: true
+  tasks:
+    - name: Install containerd and Kubernetes prerequisites
+      ansible.builtin.apt:
+        lock_timeout: 300
+        name: [containerd, conntrack, socat, prometheus-node-exporter]
+        update_cache: true
+
+    - name: Download the Kubernetes package signing key
+      ansible.builtin.get_url:
+        url: "https://pkgs.k8s.io/core:/stable:/{{ kubernetes_minor_version }}/deb/Release.key"
+        dest: /etc/apt/keyrings/kubernetes-apt-keyring.asc
+        mode: "0644"
+
+    - name: Add the Kubernetes apt repository
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.asc] https://pkgs.k8s.io/core:/stable:/{{ kubernetes_minor_version }}/deb/ /"
+        filename: kubernetes
+
+    - name: Install pinned Kubernetes packages
+      ansible.builtin.apt:
+        name:
+          - "kubelet={{ kubernetes_package_version }}"
+          - "kubeadm={{ kubernetes_package_version }}"
+          - "kubectl={{ kubernetes_package_version }}"
+
+    - name: Load the kernel modules required by Kubernetes
+      ansible.builtin.copy:
+        dest: /etc/modules-load.d/kubernetes.conf
+        content: |
+          overlay
+          br_netfilter
+        mode: "0644"
+
+    - name: Enable the kernel modules now
+      ansible.builtin.command: modprobe -a overlay br_netfilter
+      changed_when: false
+
+    - name: Enable Kubernetes network forwarding
+      ansible.posix.sysctl:
+        name: "{{ item }}"
+        value: "1"
+        sysctl_set: true
+      loop:
+        - net.ipv4.ip_forward
+        - net.bridge.bridge-nf-call-iptables
+
+    - name: Generate the default containerd configuration
+      ansible.builtin.command: containerd config default
+      register: containerd_default_config
+      changed_when: false
+
+    - name: Configure containerd to use systemd cgroups
+      ansible.builtin.copy:
+        dest: /etc/containerd/config.toml
+        content: "{{ containerd_default_config.stdout | replace('SystemdCgroup = false', 'SystemdCgroup = true') }}"
+        mode: "0644"
+
+    - name: Restart containerd
+      ansible.builtin.systemd_service:
+        name: containerd
+        enabled: true
+        state: restarted
+
+- name: Create the control plane and join the workers
+  hosts: masters
+  become: true
+  tasks:
+    - name: Initialize the control plane
+      ansible.builtin.command:
+        cmd: >-
+          kubeadm init
+          --apiserver-advertise-address={{ ansible_host }}
+          --pod-network-cidr={{ pod_network_cidr }}
+          --cri-socket=unix:///run/containerd/containerd.sock
+        creates: /etc/kubernetes/admin.conf
+
+    - name: Create a short-lived worker join command
+      ansible.builtin.command: kubeadm token create --print-join-command
+      register: kubeadm_join_command
+      changed_when: false
+      no_log: true
+
+- name: Join the workers
+  hosts: workers
+  become: true
+  tasks:
+    - name: Join this node to the cluster
+      ansible.builtin.command:
+        cmd: >-
+          {{ hostvars[groups['masters'][0]].kubeadm_join_command.stdout }}
+          --cri-socket=unix:///run/containerd/containerd.sock
+        creates: /etc/kubernetes/kubelet.conf
+      no_log: true
+
+- name: Install the cluster services
+  hosts: masters
+  become: true
+  environment:
+    KUBECONFIG: /etc/kubernetes/admin.conf
+  vars:
+    minio_url: "http://{{ hostvars[groups['monitoring'][0]].ansible_host }}:9000"
+    cluster_charts:
+      - name: cert-manager
+        chart: jetstack/cert-manager
+        namespace: cert-manager
+        version: "{{ cert_manager_chart_version }}"
+        options: ["--set", "crds.enabled=true"]
+      - name: argocd
+        chart: argo/argo-cd
+        namespace: argocd
+        version: "{{ argocd_chart_version }}"
+        options: ["--set", "server.service.type=LoadBalancer"]
+  tasks:
+    - name: Install Flannel pod networking
+      ansible.builtin.command:
+        cmd: >-
+          kubectl apply -f
+          https://github.com/flannel-io/flannel/releases/download/{{ flannel_version }}/kube-flannel.yml
+      changed_when: true
+
+    - name: Install local-path storage
+      ansible.builtin.command:
+        cmd: >-
+          kubectl apply -f
+          https://raw.githubusercontent.com/rancher/local-path-provisioner/{{ local_path_version }}/deploy/local-path-storage.yaml
+      changed_when: true
+
+    - name: Install Helm
+      ansible.builtin.unarchive:
+        src: "https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz"
+        dest: /usr/local/bin
+        remote_src: true
+        extra_opts: [--strip-components=1, linux-amd64/helm]
+        creates: /usr/local/bin/helm
+
+    - name: Install the Velero client
+      ansible.builtin.unarchive:
+        src: "https://github.com/vmware-tanzu/velero/releases/download/{{ velero_version }}/velero-{{ velero_version }}-linux-amd64.tar.gz"
+        dest: /usr/local/bin
+        remote_src: true
+        extra_opts: [--strip-components=1, "velero-{{ velero_version }}-linux-amd64/velero"]
+        creates: /usr/local/bin/velero
+
+    - name: Add the Helm repositories
+      ansible.builtin.command: "helm repo add {{ item.name }} {{ item.url }} --force-update"
+      loop:
+        - {name: metallb, url: "https://metallb.github.io/metallb"}
+        - {name: jetstack, url: "https://charts.jetstack.io"}
+        - {name: argo, url: "https://argoproj.github.io/argo-helm"}
+        - {name: vmware-tanzu, url: "https://vmware-tanzu.github.io/helm-charts"}
+      changed_when: false
+
+    - name: Install MetalLB
+      ansible.builtin.command: >-
+        helm upgrade --install metallb metallb/metallb --namespace metallb-system
+        --create-namespace --version {{ metallb_chart_version }} --wait
+      changed_when: true
+
+    - name: Install cert-manager and Argo CD
+      ansible.builtin.command:
+        argv: >-
+          {{ ['helm', 'upgrade', '--install', item.name, item.chart,
+              '--namespace', item.namespace, '--create-namespace',
+              '--version', item.version, '--wait', '--timeout', '15m'] + item.options }}
+      loop: "{{ cluster_charts }}"
+      changed_when: true
+
+    - name: Install Velero
+      ansible.builtin.command:
+        cmd: >-
+          helm upgrade --install velero vmware-tanzu/velero --namespace velero
+          --create-namespace --version {{ velero_chart_version }} --values - --wait --timeout 10m
+        stdin: "{{ lookup('ansible.builtin.template', 'velero-values.yaml.j2') }}"
+      changed_when: true
+      no_log: true
+
+    - name: Apply the cluster configuration
+      ansible.builtin.command:
+        cmd: kubectl apply -f -
+        stdin: "{{ lookup('ansible.builtin.template', item) }}"
+      loop:
+        - metallb-pool.yaml.j2
+        - app-secret.yaml.j2
+        - argocd-application.yaml.j2
+      changed_when: true
+      no_log: true

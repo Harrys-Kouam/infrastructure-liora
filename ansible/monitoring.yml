@@ -1,0 +1,115 @@
+---
+- name: Install MinIO, Prometheus and Grafana
+  hosts: monitoring
+  become: true
+  tasks:
+    - name: Create the MinIO service account
+      ansible.builtin.user:
+        name: minio
+        system: true
+        home: /var/lib/minio
+        shell: /usr/sbin/nologin
+
+    - name: Install the Go toolchain used to build MinIO
+      ansible.builtin.unarchive:
+        src: "https://go.dev/dl/go{{ go_version }}.linux-amd64.tar.gz"
+        dest: /usr/local
+        remote_src: true
+        creates: /usr/local/go/bin/go
+
+    # MinIO no longer publishes binaries or images, so it is built from source.
+    - name: Build MinIO from the official source tag
+      ansible.builtin.command:
+        cmd: "/usr/local/go/bin/go install github.com/minio/minio@{{ minio_version }}"
+        creates: /usr/local/bin/minio
+      environment:
+        GOBIN: /usr/local/bin
+        GOPATH: /tmp/minio-gopath
+        GOCACHE: /tmp/minio-gocache
+
+    - name: Install the MinIO service
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/minio.service
+        content: |
+          [Unit]
+          Description=MinIO
+          After=network-online.target
+
+          [Service]
+          User=minio
+          Environment=MINIO_ROOT_USER={{ minio_root_user }}
+          Environment=MINIO_ROOT_PASSWORD={{ minio_root_password }}
+          ExecStart=/usr/local/bin/minio server /var/lib/minio/data --address :9000 --console-address :9001
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+        mode: "0600"
+      no_log: true
+
+    - name: Download the Grafana package signing key
+      ansible.builtin.get_url:
+        url: https://apt.grafana.com/gpg.key
+        dest: /etc/apt/keyrings/grafana.asc
+        mode: "0644"
+
+    - name: Add the Grafana apt repository
+      ansible.builtin.apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/grafana.asc] https://apt.grafana.com stable main"
+        filename: grafana
+
+    - name: Install Prometheus, the node exporter and Grafana
+      ansible.builtin.apt:
+        lock_timeout: 300
+        name: [prometheus, prometheus-node-exporter, grafana]
+
+    - name: Configure Prometheus
+      ansible.builtin.template:
+        src: prometheus.yml.j2
+        dest: /etc/prometheus/prometheus.yml
+        mode: "0644"
+
+    - name: Set the Grafana admin credentials
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/grafana-server.service.d/admin.conf
+        content: |
+          [Service]
+          Environment="GF_SECURITY_ADMIN_USER=admin"
+          Environment="GF_SECURITY_ADMIN_PASSWORD={{ grafana_admin_password }}"
+        mode: "0600"
+        directory_mode: "0755"
+      no_log: true
+
+    - name: Connect Grafana to Prometheus
+      ansible.builtin.copy:
+        dest: /etc/grafana/provisioning/datasources/prometheus.yaml
+        content: |
+          apiVersion: 1
+          datasources:
+            - name: Prometheus
+              type: prometheus
+              url: http://localhost:9090
+              isDefault: true
+        group: grafana
+        mode: "0640"
+
+    - name: Start the services
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        enabled: true
+        state: restarted
+        daemon_reload: true
+      loop: [minio, prometheus, prometheus-node-exporter, grafana-server]
+
+    - name: Create the Velero bucket  # noqa: command-instead-of-module
+      ansible.builtin.command:
+        cmd: >-
+          curl --silent --output /dev/null --write-out %{http_code}
+          --retry 10 --retry-connrefused --retry-delay 3
+          --aws-sigv4 aws:amz:us-east-1:s3
+          --user "{{ minio_root_user }}:{{ minio_root_password }}"
+          --request PUT http://localhost:9000/{{ minio_bucket }}
+      register: minio_bucket_result
+      changed_when: minio_bucket_result.stdout == '200'
+      failed_when: minio_bucket_result.stdout not in ['200', '409']
+      no_log: true

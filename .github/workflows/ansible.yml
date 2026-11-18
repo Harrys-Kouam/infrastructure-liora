@@ -44,21 +44,17 @@ jobs:
   deploy:
     if: github.event_name == 'workflow_dispatch'
     needs: validate
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
+    runs-on: [self-hosted, proxmox]
+    timeout-minutes: 90
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
       - name: Install Ansible and collections
         run: |
-          python -m pip install ansible-core
-          ansible-galaxy collection install -r ansible/requirements.yml
+          python3 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install ansible-core
+          "$RUNNER_TEMP/venv/bin/ansible-galaxy" collection install -r ansible/requirements.yml
 
       - name: Write the SSH key and inventory
         env:
@@ -70,12 +66,17 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           printf '%s\n' "$ANSIBLE_INVENTORY" > ansible/inventory.ini
 
-      - name: Install Kubernetes and the cluster services
+      - name: Install Kubernetes and the platform services
         env:
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD }}
           TASK_MANAGER_JWT_SECRET: ${{ secrets.TASK_MANAGER_JWT_SECRET }}
+          MINIO_ROOT_PASSWORD: ${{ secrets.MINIO_ROOT_PASSWORD }}
           ANSIBLE_SSH_COMMON_ARGS: -o StrictHostKeyChecking=accept-new -o ServerAliveInterval=30
           ANSIBLE_SSH_RETRIES: "3"
         run: >-
-          ansible-playbook -i ansible/inventory.ini ansible/site.yml
+          "$RUNNER_TEMP/venv/bin/ansible-playbook" -i ansible/inventory.ini ansible/site.yml
           -e ansible_ssh_private_key_file=$HOME/.ssh/deploy_key
+
+      - name: Remove the SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key ansible/inventory.ini

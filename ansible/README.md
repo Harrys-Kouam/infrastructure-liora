@@ -1,68 +1,69 @@
-# Proxmox Kubernetes high-availability cluster
+# Ansible
 
-The playbook installs upstream Kubernetes 1.37.2 with kubeadm on exactly six Ubuntu
-nodes: three control-plane nodes with stacked etcd and three workers. It also
-installs containerd, Flannel networking, an HAProxy/Keepalived API VIP,
-MetalLB, cert-manager, local-path storage, Prometheus/Grafana, and Argo CD.
-Argo CD pulls the Task Manager Helm chart from the separate manifests repository.
+`site.yml` checks the inventory and secrets, then runs `kubernetes.yml` (the
+cluster) and `monitoring.yml` (the monitoring VM). Together they install upstream Kubernetes 1.37 with kubeadm (containerd, Flannel)
+on one master and two workers, MinIO + Prometheus + Grafana on the monitoring
+VM, and MetalLB, cert-manager, local-path storage, Velero and Argo CD in the
+cluster. The runner VM is not in the inventory. Node hostnames and the absence of swap
+come from the Ubuntu cloud image and cloud-init. MinIO starts after the cluster,
+so Velero's storage location turns `Available` about a minute after the run.
 
-GitHub Actions has no kubeconfig and does not deploy to Kubernetes. Run the
-playbook from an administrator workstation with SSH access. The kubeadm join
-token and certificates are kept in Ansible memory during the run, not stored
-in GitHub or the repository.
+Prometheus on `monitoring-1` scrapes `node_exporter` on every VM (CPU, memory,
+disk, network); import Grafana dashboard 1860 to view it. Kubernetes objects
+are not scraped.
 
-## Prepare
+## One-time setup
 
-1. Use Ubuntu 24.04 cloud-init VMs with unique hostnames/MAC addresses and
-   Terraform to provision three masters and three workers.
-2. Copy `inventory.ini.example` to `inventory.ini`, then replace the example
-   IPs, SSH user, and key path.
-3. Configure `group_vars/all.yml` with an unused API VIP, an unused MetalLB
-   IP range, and the manifests repository URL.
-4. Reserve the VIP and MetalLB IP range outside DHCP. Permit the Kubernetes
-   API, etcd, kubelet, Flannel UDP 8472, and VRRP traffic between the nodes.
-5. Install Ansible and the collection:
+1. Provision the VMs with Terraform.
+2. Copy `inventory.ini.example` to `inventory.ini` and adjust the IPs. In
+   `group_vars/all.yml` set `metallb_addresses` to unused private IPs.
+3. Register the runner on `runner-1`. From a machine that can reach the
+   Proxmox host:
 
    ```bash
-   ansible-galaxy collection install -r requirements.yml
+   ssh -J root@<proxmox-ip> ubuntu@192.168.100.30
+   sudo apt-get update && sudo apt-get install -y python3-venv git
    ```
+
+   Then follow GitHub → repository → Settings → Actions → Runners → New
+   self-hosted runner (Linux x64), adding the label `proxmox`, and install it
+   as a service (`sudo ./svc.sh install && sudo ./svc.sh start`).
+4. Add these repository secrets (Settings → Secrets and variables → Actions):
+
+   | Secret | Value |
+   |---|---|
+   | `SSH_PRIVATE_KEY` | private key matching the public key given to Terraform |
+   | `ANSIBLE_INVENTORY` | full content of `inventory.ini` |
+   | `GRAFANA_ADMIN_PASSWORD` | 24+ characters, from `openssl rand -base64 24` |
+   | `TASK_MANAGER_JWT_SECRET` | 32+ characters, from `openssl rand -hex 32` |
+   | `MINIO_ROOT_PASSWORD` | 24+ characters, from `openssl rand -base64 24` |
 
 ## Deploy
 
-The `Ansible` workflow validates on every push and pull request; its deploy job (manual trigger, runs on a
-GitHub-hosted runner) runs the playbook. Add these repository secrets first
-(Settings → Secrets and variables → Actions):
+Actions → **Ansible** → Run workflow. Only that deploy job runs on the
+self-hosted runner and only on a manual trigger. The repository is public, so
+keep "Require approval for all outside collaborators" enabled.
 
-- `SSH_PRIVATE_KEY`: private key matching the public key given to Terraform.
-- `ANSIBLE_INVENTORY`: the full content of your `inventory.ini`.
-- `GRAFANA_ADMIN_PASSWORD`: at least 24 characters.
-- `TASK_MANAGER_JWT_SECRET`: at least 32 characters.
-
-The runner must reach the VMs over SSH, so the addresses in `ansible_host`
-must be reachable from the internet. To run it by hand instead, export the two
-passwords and run:
-
-```bash
-ansible-playbook -i ansible/inventory.ini ansible/site.yml
-```
-
-Both application passwords are passed only for that playbook run. The
-kubeadm join token and control-plane certificate key are generated on the
-first master and kept only in Ansible memory. `kubectl` and `helm` run on the
-first master over SSH, so no kubeconfig or Kubernetes credential is ever stored
-in GitHub.
-
-Ansible installs cert-manager. Add an issuer only after choosing the DNS
-provider or ingress path and configuring the real domain and account details.
-
-If the manifests repository is private, configure a read-only Argo CD deploy
-key on the cluster. Do not copy a kubeconfig or Kubernetes credentials into
-GitHub Actions.
+Grafana's admin password is applied the first time Grafana starts; change it
+later with `grafana cli admin reset-admin-password`. Use a base64 password.
 
 ## Verify
 
 ```bash
-ansible-playbook -i ansible/inventory.ini ansible/site.yml --syntax-check
-ssh ubuntu@192.168.1.10 sudo kubectl get nodes -o wide
-ssh ubuntu@192.168.1.10 sudo kubectl get pods --all-namespaces
+ssh -J root@<proxmox-ip> ubuntu@192.168.100.10 sudo kubectl get nodes
+ssh -J root@<proxmox-ip> ubuntu@192.168.100.10 sudo kubectl get pods -A
+ssh -J root@<proxmox-ip> ubuntu@192.168.100.10 sudo kubectl get backupstoragelocation -n velero
 ```
+
+The VMs are private. To open Grafana (`http://192.168.100.40:3000`), Prometheus
+(`:9090`), Argo CD or the application (MetalLB addresses) from your computer,
+use an SSH tunnel through the Proxmox host, for example
+`ssh -L 3000:192.168.100.40:3000 root@<proxmox-ip>`.
+
+The Velero server runs in the cluster; the `velero` client is installed on
+`master-1`. Back up with `sudo velero backup create demo --include-namespaces task-manager`
+(use `--kubeconfig /etc/kubernetes/admin.conf` if needed) and restore with
+`velero restore create --from-backup demo`.
+
+cert-manager has no issuer; add one only once you have a real domain.
+If the manifests repository becomes private, configure an Argo CD deploy key.

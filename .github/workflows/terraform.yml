@@ -70,11 +70,6 @@ jobs:
           terraform_wrapper: false
           cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
 
-      - name: Write terraform.tfvars
-        env:
-          TFVARS: ${{ secrets.TFVARS }}
-        run: printf '%s\n' "$TFVARS" > terraform.tfvars
-
       - name: Terraform init
         run: terraform init -input=false
 

@@ -23,17 +23,17 @@ provider "proxmox" {
   insecure = var.proxmox_insecure
 }
 
-# One VM per entry in var.nodes (3 masters + 3 workers).
+# One VM per entry in var.nodes (1 master, 2 workers, 1 runner, 1 monitoring).
 resource "proxmox_virtual_environment_vm" "node" {
   for_each = var.nodes
 
   name      = each.key
-  node_name = each.value.proxmox_node
+  node_name = var.proxmox_node
   vm_id     = each.value.vm_id
 
   clone {
     vm_id     = var.template_vm_id
-    node_name = var.template_node_name
+    node_name = var.proxmox_node
   }
 
   agent {
