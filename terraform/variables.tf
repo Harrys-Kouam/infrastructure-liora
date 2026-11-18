@@ -78,11 +78,11 @@ variable "nodes" {
     memory     = number
   }))
   default = {
-    master-1     = { vm_id = 200, ip_address = "192.168.100.10", memory = 3072 }
-    worker-1     = { vm_id = 300, ip_address = "192.168.100.20", memory = 4096 }
-    worker-2     = { vm_id = 301, ip_address = "192.168.100.21", memory = 4096 }
-    runner-1     = { vm_id = 400, ip_address = "192.168.100.30", memory = 2048 }
-    monitoring-1 = { vm_id = 401, ip_address = "192.168.100.40", memory = 4096 }
+    master-1     = { vm_id = 500, ip_address = "192.168.100.13", memory = 3072 }
+    worker-1     = { vm_id = 501, ip_address = "192.168.100.20", memory = 4096 }
+    worker-2     = { vm_id = 502, ip_address = "192.168.100.21", memory = 4096 }
+    runner-1     = { vm_id = 503, ip_address = "192.168.100.30", memory = 2048 }
+    monitoring-1 = { vm_id = 504, ip_address = "192.168.100.40", memory = 4096 }
   }
 
   validation {

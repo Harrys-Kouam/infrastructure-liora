@@ -50,9 +50,9 @@ later with `grafana cli admin reset-admin-password`. Use a base64 password.
 ## Verify
 
 ```bash
-ssh -J root@<proxmox-ip> ubuntu@192.168.100.10 sudo kubectl get nodes
-ssh -J root@<proxmox-ip> ubuntu@192.168.100.10 sudo kubectl get pods -A
-ssh -J root@<proxmox-ip> ubuntu@192.168.100.10 sudo kubectl get backupstoragelocation -n velero
+ssh -J root@<proxmox-ip> ubuntu@192.168.100.13 sudo kubectl get nodes
+ssh -J root@<proxmox-ip> ubuntu@192.168.100.13 sudo kubectl get pods -A
+ssh -J root@<proxmox-ip> ubuntu@192.168.100.13 sudo kubectl get backupstoragelocation -n velero
 ```
 
 The VMs are private. To open Grafana (`http://192.168.100.40:3000`), Prometheus
