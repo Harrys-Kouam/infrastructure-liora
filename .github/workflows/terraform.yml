@@ -12,12 +12,6 @@ on:
       - "terraform/**"
       - ".github/workflows/terraform.yml"
   workflow_dispatch:
-    inputs:
-      action:
-        description: plan only shows the changes; apply creates the VMs
-        type: choice
-        options: [plan, apply]
-        default: plan
 
 permissions:
   contents: read
@@ -49,7 +43,7 @@ jobs:
         run: terraform validate -no-color
         working-directory: terraform
 
-  run:
+  plan:
     if: github.event_name == 'workflow_dispatch'
     needs: validate
     runs-on: ubuntu-latest
@@ -74,8 +68,32 @@ jobs:
         run: terraform init -input=false
 
       - name: Terraform plan
-        run: terraform plan -input=false -out=tfplan
+        run: terraform plan -input=false
+
+  # The "apply" environment requires a manual approval (Settings -> Environments).
+  apply:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: apply
+    env:
+      PROXMOX_VE_API_TOKEN: ${{ secrets.PROXMOX_VE_API_TOKEN }}
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+          terraform_wrapper: false
+          cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Terraform init
+        run: terraform init -input=false
 
       - name: Terraform apply
-        if: inputs.action == 'apply'
-        run: terraform apply -input=false tfplan
+        run: terraform apply -input=false -auto-approve

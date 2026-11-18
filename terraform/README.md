@@ -17,8 +17,13 @@ Terraform files.
 ## Run it from GitHub
 
 The `Terraform` workflow validates on every push and pull request. To create the
-VMs, open Actions → Terraform → Run workflow and choose `plan` (shows the changes)
-or `apply` (creates the VMs). State is stored in HCP Terraform.
+VMs, open Actions → Terraform → Run workflow. The `plan` job shows the changes;
+the `apply` job then waits for your approval (Review deployments → Approve) and
+creates the VMs. State is stored in HCP Terraform.
+
+Create the approval gate once: Settings → Environments → New environment `apply`
+→ tick **Required reviewers** and add yourself. Without it, `apply` would run
+automatically.
 
 One-time setup:
 
