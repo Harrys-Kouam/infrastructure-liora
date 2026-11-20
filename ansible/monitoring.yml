@@ -69,6 +69,12 @@
         dest: /etc/prometheus/prometheus.yml
         mode: "0644"
 
+    - name: Create the Grafana service override directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/grafana-server.service.d
+        state: directory
+        mode: "0755"
+
     - name: Set the Grafana admin credentials
       ansible.builtin.copy:
         dest: /etc/systemd/system/grafana-server.service.d/admin.conf
@@ -77,7 +83,6 @@
           Environment="GF_SECURITY_ADMIN_USER=admin"
           Environment="GF_SECURITY_ADMIN_PASSWORD={{ grafana_admin_password }}"
         mode: "0600"
-        directory_mode: "0755"
       no_log: true
 
     - name: Connect Grafana to Prometheus
