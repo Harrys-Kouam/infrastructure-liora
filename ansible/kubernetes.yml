@@ -166,6 +166,16 @@
         --create-namespace --version {{ metallb_chart_version }} --wait
       changed_when: true
 
+    - name: Configure the MetalLB address pool
+      ansible.builtin.command:
+        cmd: kubectl apply -f -
+        stdin: "{{ lookup('ansible.builtin.template', 'metallb-pool.yaml.j2') }}"
+      register: metallb_pool
+      until: metallb_pool.rc == 0
+      retries: 10
+      delay: 5
+      changed_when: true
+
     - name: Install cert-manager and Argo CD
       ansible.builtin.command:
         argv: >-
@@ -189,7 +199,6 @@
         cmd: kubectl apply -f -
         stdin: "{{ lookup('ansible.builtin.template', item) }}"
       loop:
-        - metallb-pool.yaml.j2
         - app-secret.yaml.j2
         - argocd-application.yaml.j2
       changed_when: true
